@@ -1,0 +1,50 @@
+name: Java CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. הורדת הקוד
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. התקנת ג'אווה (רק בשביל לעדכן את קובץ ה-POM)
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      # 3. סעיף 2a: עדכון הגרסה בקובץ ה-POM ושמירת המספר לשימוש בדוקר
+      - name: Bump version
+        run: |
+          NEW_VERSION="1.0.${{ github.run_number }}"
+          echo "Setting POM version to $NEW_VERSION"
+          mvn versions:set -DnewVersion=$NEW_VERSION -DgenerateBackupPoms=false
+          
+          # אנחנו שומרים את המספר החדש כמשתנה סביבה כדי שנוכל להדביק אותו על תמונת הדוקר
+          echo "APP_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      # 4. התחברות ל-Docker Hub (משתמש בסודות שהגדרנו מראש)
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 5. סעיפים 2b + 2c: בניית התמונה (באמצעות ה-Dockerfile שלנו!) ודחיפתה
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # כאן אנחנו מגדירים איך יקראו לתמונה ב-Docker Hub. 
+          # אנחנו נותנים לה שני תיוגים: אחד עם המספר הספציפי, ואחד בתור ה"הכי חדש" (latest)
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/my-app:latest
+            ${{ secrets.DOCKER_USERNAME }}/my-app:${{ env.APP_VERSION }}
