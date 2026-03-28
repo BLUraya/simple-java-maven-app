@@ -1,0 +1,17 @@
+FROM maven:4.0.0-rc-5-eclipse-temurin-21 AS builder
+
+WORKDIR /app
+
+COPY pom.xml .
+
+COPY src ./src
+
+RUN mvn clean package 
+
+
+
+FROM eclipse-temurin:21-jre-alpine
+
+COPY --from=builder /app/target/*.jar app.jar
+
+ENTRYPOINT [ "java" , "-jar" , "app.jar" ]
